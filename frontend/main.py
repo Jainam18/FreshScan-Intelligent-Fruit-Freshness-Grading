@@ -8,7 +8,7 @@ import torch
 import joblib
 import pandas as pd
 import numpy as np
-from skimage.feature import greycomatrix, greycoprops
+from skimage.feature import graycomatrix, graycoprops
 from skimage.io import imread, imshow, imsave
 from skimage import data
 from skimage.util import img_as_ubyte
@@ -20,9 +20,10 @@ from skimage.measure.entropy import shannon_entropy
 from PIL import Image
 from skimage import io
 from scipy.stats import skew
-from tensorflow.keras.models import load_model
+import imutils
+import tensorflow as tf
 import easyocr
-
+import os
 
 model_yolo = torch.hub.load('ultralytics/yolov5', 'custom', path='../backend/yolov5/runs/train/exp2/weights/best.pt')  # local model
 model_apple1 = joblib.load('../backend/models/applemodel_1.joblib')
@@ -32,7 +33,7 @@ model_tomato = joblib.load('../backend/models/tomatomodel.joblib')
 preprocess_apple1 = joblib.load('../backend/models/AppleScaler_1.save')
 preprocess_apple2 = joblib.load('../backend/models/AppleScaler_2.save')
 preprocess_banana2 = joblib.load('../backend/models/BananaScaler.save')
-vgg_model = load_model('../backend/models/detector.h5')
+vgg_model = tf.keras.models.load_model('../backend/models/detector.h5')
 
 # Load the OCR reader
 reader = easyocr.Reader(['en'])
@@ -76,30 +77,30 @@ def test(image,fruit):
     skewness_G=(skew(G.flatten()))
     skewness_B=(skew(B.flatten()))
 #             Texture Feature
-    glcm_0 = greycomatrix(img, [5], [0], levels=256, normed=True, symmetric=True)
-    glcm_45 = greycomatrix(img, [5], [np.pi/4], levels=256, normed=True, symmetric=True)
-    glcm_90 = greycomatrix(img, [5], [np.pi/2], levels=256, normed=True, symmetric=True)
-    glcm_135 = greycomatrix(img, [5], [3*np.pi/4], levels=256, normed=True, symmetric=True)
+    glcm_0 = graycomatrix(img, [5], [0], levels=256, normed=True, symmetric=True)
+    glcm_45 = graycomatrix(img, [5], [np.pi/4], levels=256, normed=True, symmetric=True)
+    glcm_90 = graycomatrix(img, [5], [np.pi/2], levels=256, normed=True, symmetric=True)
+    glcm_135 = graycomatrix(img, [5], [3*np.pi/4], levels=256, normed=True, symmetric=True)
 #             Contrast
-    contrast_0=(greycoprops(glcm_0, 'contrast')[0][0])
-    contrast_45=(greycoprops(glcm_45, 'contrast')[0][0])
-    contrast_90=(greycoprops(glcm_90, 'contrast')[0][0])
-    contrast_135=(greycoprops(glcm_135, 'contrast')[0][0])
+    contrast_0=(graycoprops(glcm_0, 'contrast')[0][0])
+    contrast_45=(graycoprops(glcm_45, 'contrast')[0][0])
+    contrast_90=(graycoprops(glcm_90, 'contrast')[0][0])
+    contrast_135=(graycoprops(glcm_135, 'contrast')[0][0])
 #             Correlation
-    correlation_0=(greycoprops(glcm_0, 'correlation')[0][0])
-    correlation_45=(greycoprops(glcm_45, 'correlation')[0][0])
-    correlation_90=(greycoprops(glcm_90, 'correlation')[0][0])
-    correlation_135=(greycoprops(glcm_135, 'correlation')[0][0])
+    correlation_0=(graycoprops(glcm_0, 'correlation')[0][0])
+    correlation_45=(graycoprops(glcm_45, 'correlation')[0][0])
+    correlation_90=(graycoprops(glcm_90, 'correlation')[0][0])
+    correlation_135=(graycoprops(glcm_135, 'correlation')[0][0])
 #             Energy
-    energy_0=(greycoprops(glcm_0, 'energy')[0][0])
-    energy_45=(greycoprops(glcm_45, 'energy')[0][0])
-    energy_90=(greycoprops(glcm_90, 'energy')[0][0])
-    energy_135=(greycoprops(glcm_135, 'energy')[0][0])
+    energy_0=(graycoprops(glcm_0, 'energy')[0][0])
+    energy_45=(graycoprops(glcm_45, 'energy')[0][0])
+    energy_90=(graycoprops(glcm_90, 'energy')[0][0])
+    energy_135=(graycoprops(glcm_135, 'energy')[0][0])
 #             Homogeneity
-    homogeneity_0=(greycoprops(glcm_0, 'homogeneity')[0][0])
-    homogeneity_45=(greycoprops(glcm_45, 'homogeneity')[0][0])
-    homogeneity_90=(greycoprops(glcm_90, 'homogeneity')[0][0])
-    homogeneity_135=(greycoprops(glcm_135, 'homogeneity')[0][0])
+    homogeneity_0=(graycoprops(glcm_0, 'homogeneity')[0][0])
+    homogeneity_45=(graycoprops(glcm_45, 'homogeneity')[0][0])
+    homogeneity_90=(graycoprops(glcm_90, 'homogeneity')[0][0])
+    homogeneity_135=(graycoprops(glcm_135, 'homogeneity')[0][0])
     d = {'Mean_R':mean_R,'Mean_G':mean_G,'Mean_B':mean_B,'Std_R':std_R,'Std_G':std_G,
          'Std_B':std_B,'Skew_R':skewness_R,'Skew_G':skewness_G,'Skew_B':skewness_B,
          'Contrast_0':contrast_0,'Correlation_0':correlation_0,'Energy_0':energy_0,'Homogeneity_0':homogeneity_0,
@@ -125,7 +126,7 @@ def predict_fresh(image,label):
         X2 = preprocess_apple2.transform(df)
         pred1 = model_apple1.predict(X1)
         if pred1[0] ==0:
-            output =  'It is a Fresh'
+            output =  'It is a Fresh Apple'
         else:
             pred2 = model_apple2.predict(X2)
             if pred2[0] == 1:
@@ -175,8 +176,16 @@ if selected_option=='Fruit Freshness Grading':
     uploaded_file = st.file_uploader("Upload an image", type=["jpg", "jpeg", "png"])
     if uploaded_file is not None:
         image = Image.open(uploaded_file)
-        img = image.save("image/img.jpg")
-        image_sk = imread("image/img.jpg")
+        d = os.path.splitext(uploaded_file.name)[1].lower()
+        if d=='.jpg':
+            img = image.save("image/img.jpg")
+            image_sk = imread("image/img.jpg")
+        if d=='.png':
+            img = image.save("image/img.png")
+            image_sk = imread("image/img.png")
+        if d=='.jpeg':
+            img = image.save("image/img.jpeg")
+            image_sk = imread("image/img.jpeg")
         st.image(image, caption="Uploaded Image", width=300)
         img = np.array(image)
         global label
@@ -187,32 +196,45 @@ if selected_option=='Fruit Freshness Grading':
             freshness = predict_fresh(image_sk,label)
             st.write("Freshness Prediction:", freshness)
 else:
-    st.title("Fruit Freshness Prediction")
+    st.title("Expiry Date Recognition")
     uploaded_file = st.file_uploader("Upload an image", type=["jpg", "jpeg", "png"])
     if uploaded_file is not None:
         image = Image.open(uploaded_file)
+        d = os.path.splitext(uploaded_file.name)[1].lower()
+        if d=='.jpg':
+            img = image.save("image/img.jpg")
+            image_sk = cv2.imread("image/img.jpg")
+        if d=='.png':
+            img = image.save("image/img.png")
+            image_sk = cv2.imread("image/img.png")
+        if d=='.jpeg':
+            img = image.save("image/img.jpeg")
+            image_sk = cv2.imread("image/img.jpeg")
         image = np.array(image)
+        resized_image = cv2.resize(image, (224, 224))
+        resized_image = resized_image / 255.0
+        input_image = np.expand_dims(resized_image, axis=0)
+        preds = vgg_model.predict(input_image)[0]
+        (startX, startY, endX, endY) = preds
+        image = imutils.resize(image_sk, width=600)
+        (h, w) = image.shape[:2]
+        startX = int(startX*w)
+        startY = int(startY*h)
+        endX = int(endX*w)
+        endY = int(endY*h)
+        bounding_box = image_sk[startY-10:endY+10, startX-10:endX+10]
+        
+        st.subheader("Original Image")
+        display_image(image)
 
-    resized_image = cv2.resize(image, (224, 224))
-    resized_image = resized_image / 255.0
-    input_image = np.expand_dims(resized_image, axis=0)
+        st.subheader("Detected Bounding Box")
+        display_image(bounding_box)
 
-    preds = vgg_model.predict(input_image)[0]
-    (startX, startY, endX, endY) = preds
+        result = reader.readtext(bounding_box)
 
-    bounding_box = image[startY-10:endY+10, startX-10:endX+10]
-
-    st.subheader("Original Image")
-    display_image(image)
-
-    st.subheader("Detected Bounding Box")
-    display_image(bounding_box)
-
-    result = reader.readtext(bounding_box)
-
-    st.subheader("Detected Text")
-    for text in result:
-        st.write(text[1])
+        st.subheader("Detected Text")
+        for text in result:
+            st.write(text[1])
 
 st.markdown(
     """
